@@ -3,45 +3,46 @@
 #include "qscadaconnecteddeviceinfo.h"
 
 #include "../QScadaObject/qscadaobject.h"
+#include "../QScadaObject/qscadaobjectqml.h"
 #include "../QScadaBoard/qscadaboard.h"
 
 #include <QByteArray>
 #include <QDebug>
 #include <QFile>
+#include <QVariant>
 
-const QString VConnectedDeviceInfo::tag_devices = QString("devices");
-const QString VConnectedDeviceInfo::tag_device = QString("device");
-const QString VConnectedDeviceInfo::tag_device_name = QString("name");
-const QString VConnectedDeviceInfo::tag_device_ip = QString("ip");
-const QString VConnectedDeviceInfo::tag_device_ip_v6 = QString("ip_v6");
-const QString VConnectedDeviceInfo::tag_device_host = QString("host");
-const QString VConnectedDeviceInfo::tag_device_domain = QString("domain");
+const QString QConnectedDeviceInfo::tag_devices = QString("devices");
+const QString QConnectedDeviceInfo::tag_device = QString("device");
+const QString QConnectedDeviceInfo::tag_device_name = QString("name");
+const QString QConnectedDeviceInfo::tag_device_ip = QString("ip");
+const QString QConnectedDeviceInfo::tag_device_ip_v6 = QString("ip_v6");
+const QString QConnectedDeviceInfo::tag_device_host = QString("host");
+const QString QConnectedDeviceInfo::tag_device_domain = QString("domain");
 
-const QString VConnectedDeviceInfo::tag_boards = QString("boards");
-const QString VConnectedDeviceInfo::tag_board = QString("board");
-const QString VConnectedDeviceInfo::tag_object = QString("object");
-const QString VConnectedDeviceInfo::tag_title = QString("title");
-const QString VConnectedDeviceInfo::tag_show_background = QString("show_background");//new
-const QString VConnectedDeviceInfo::tag_show_background_image = QString("show_background_image"); //
-const QString VConnectedDeviceInfo::tag_show_marker = QString("show_marker");//new
-const QString VConnectedDeviceInfo::tag_background_image = QString("background_image");//new
-const QString VConnectedDeviceInfo::tag_id = QString("id");
-const QString VConnectedDeviceInfo::tag_is_dynamic = QString("is_dynamic");
-const QString VConnectedDeviceInfo::tag_geometry_x = QString("geometry_x");
-const QString VConnectedDeviceInfo::tag_geometry_y = QString("geometry_y");
-const QString VConnectedDeviceInfo::tag_geometry_width = QString("geometry_width");
-const QString VConnectedDeviceInfo::tag_geometry_height = QString("geometry_height");
-const QString VConnectedDeviceInfo::tag_axis_enabled = QString("axis_enabled");
-const QString VConnectedDeviceInfo::tag_axis_position = QString("axis_position");//new
-const QString VConnectedDeviceInfo::tag_axis_x = QString("axis_x");
-const QString VConnectedDeviceInfo::tag_axis_y = QString("axis_y");
-const QString VConnectedDeviceInfo::tag_axis_z = QString("axis_z");
+const QString QConnectedDeviceInfo::tag_boards = QString("boards");
+const QString QConnectedDeviceInfo::tag_board = QString("board");
+const QString QConnectedDeviceInfo::tag_board_id = QString("board_id");
+const QString QConnectedDeviceInfo::tag_object = QString("object");
+const QString QConnectedDeviceInfo::tag_show_background = QString("show_background");//new
+const QString QConnectedDeviceInfo::tag_id = QString("id");
+const QString QConnectedDeviceInfo::tag_geometry_x = QString("geometry_x");
+const QString QConnectedDeviceInfo::tag_geometry_y = QString("geometry_y");
+const QString QConnectedDeviceInfo::tag_geometry_width = QString("geometry_width");
+const QString QConnectedDeviceInfo::tag_geometry_height = QString("geometry_height");
+const QString QConnectedDeviceInfo::tag_axis_enabled = QString("axis_enabled");
+const QString QConnectedDeviceInfo::tag_axis_position = QString("axis_position");//new
+const QString QConnectedDeviceInfo::tag_axis_x = QString("axis_x");
+const QString QConnectedDeviceInfo::tag_axis_y = QString("axis_y");
+const QString QConnectedDeviceInfo::tag_axis_z = QString("axis_z");
+const QString QConnectedDeviceInfo::order_level = QString("order_level");
+const QString QConnectedDeviceInfo::tag_ui_resource = QString("tag_ui_resource");
+const QString QConnectedDeviceInfo::properties = QString("properties");
 
-VConnectedDeviceInfo::VConnectedDeviceInfo(QObject *parent):
+QConnectedDeviceInfo::QConnectedDeviceInfo(QObject *parent):
     QScadaBasePrefEntity(parent) {
 }
 
-QString VConnectedDeviceInfo::formTag(QString tag, bool isClosing, bool newLine, int numOfTabs)
+QString QConnectedDeviceInfo::formTag(QString tag, bool isClosing, bool newLine, int numOfTabs)
 {
     QString lReturn;
 
@@ -65,7 +66,7 @@ QString VConnectedDeviceInfo::formTag(QString tag, bool isClosing, bool newLine,
     return lReturn;
 }
 
-QString VConnectedDeviceInfo::formTagValue(QString tag, QString value, bool newLine, int numOfTabs)
+QString QConnectedDeviceInfo::formTagValue(QString tag, QString value, bool newLine, int numOfTabs)
 {
     QString lReturn;
 
@@ -75,13 +76,24 @@ QString VConnectedDeviceInfo::formTagValue(QString tag, QString value, bool newL
     return lReturn;
 }
 
-void VConnectedDeviceInfo::initFromXml(const QByteArray &xmlData) {
+QString QConnectedDeviceInfo::formProperties(QMultiMap<QString, QVariant> prop)
+{
+    QString rProperties;
+    rProperties = "\t\t\t\t<" + QConnectedDeviceInfo::properties +">\n";
+    for (QString key : prop.keys()) {
+        rProperties += "\t\t\t\t\t<" + key + ">" + prop.value(key).toString() + "</" + key + ">\n";
+    }
+    rProperties += "\t\t\t\t</" + QConnectedDeviceInfo::properties + ">\n";
+
+    return rProperties;
+}
+
+void QConnectedDeviceInfo::initFromXml(const QByteArray &xmlData) {
     QXmlStreamReader lXmlStreamReader(QString::fromStdString(xmlData.toStdString()));
 
     QScadaDeviceConfig *lDeviceConfig = nullptr;
     QScadaBoardInfo *lBoard = nullptr;
     QScadaObjectInfo *lObjectInfo = nullptr;
-    QScadaObjectInfoAxis lAxis;
 
     while (!lXmlStreamReader.atEnd() && !lXmlStreamReader.hasError()) {
         QXmlStreamReader::TokenType tokenType = lXmlStreamReader.readNext();
@@ -106,23 +118,15 @@ void VConnectedDeviceInfo::initFromXml(const QByteArray &xmlData) {
             else if (lXmlStreamReader.name() == tag_board) {
                 lBoard = new QScadaBoardInfo();
                 lDeviceConfig->boardList.append(lBoard);
+            } else if (lXmlStreamReader.name() == tag_board_id) {
+                lBoard->setId(lXmlStreamReader.readElementText().toInt());
             } else if (lXmlStreamReader.name() == tag_object) {
                 lObjectInfo = new QScadaObjectInfo();
                 lBoard->appendObjectInfo(lObjectInfo);
-            } else if (lXmlStreamReader.name() == tag_title) {
-                lObjectInfo->setTitle(lXmlStreamReader.readElementText());
             } else if (lXmlStreamReader.name() == tag_id) {
                 lObjectInfo->setId(lXmlStreamReader.readElementText().toInt());//----------------------
             } else if (lXmlStreamReader.name() == tag_show_background) {
-                lObjectInfo->setShowBackground((bool)lXmlStreamReader.readElementText().toInt());//new
-            }  else if (lXmlStreamReader.name() == tag_show_background_image) {
-                lObjectInfo->setShowBackgroundImage((bool)lXmlStreamReader.readElementText().toInt());//new
-            }  else if (lXmlStreamReader.name() == tag_show_marker) {
-                lObjectInfo->setShowMarkers((bool)lXmlStreamReader.readElementText().toInt());//new
-            } else if (lXmlStreamReader.name() == tag_background_image) {
-                lObjectInfo->setBackGroundImage(lXmlStreamReader.readElementText());//new
-            } else if (lXmlStreamReader.name() == tag_is_dynamic) {
-                lObjectInfo->setIsDynamic((bool)lXmlStreamReader.readElementText().toInt());///------
+                lObjectInfo->setShowBackground(static_cast<bool>(lXmlStreamReader.readElementText().toInt()));//new
             } else if (lXmlStreamReader.name() == tag_geometry_x) {
                 QRect lRect = lObjectInfo->geometry();
                 lRect.setRect(lXmlStreamReader.readElementText().toInt(),
@@ -155,19 +159,27 @@ void VConnectedDeviceInfo::initFromXml(const QByteArray &xmlData) {
                               lXmlStreamReader.readElementText().toInt());
 
                 lObjectInfo->setGeometry(lRect);
-            } else if (lXmlStreamReader.name() == tag_axis_enabled) {
-                lObjectInfo->setAxiesEnabled((bool)lXmlStreamReader.readElementText().toInt());//-----------------
-            } else if (lXmlStreamReader.name() == tag_axis_position) {
-                lObjectInfo->setAxisPosition((QScadaObjectAxisPosition)lXmlStreamReader.readElementText().toInt());//new
-            } else if (lXmlStreamReader.name() == tag_axis_x) {
-                lAxis.setX((QScadaObjectInfoAxisDirrection)lXmlStreamReader.readElementText().toInt());//-----------
-                lObjectInfo->setAxis(lAxis);
-            } else if (lXmlStreamReader.name() == tag_axis_y) {
-                lAxis.setY((QScadaObjectInfoAxisDirrection)lXmlStreamReader.readElementText().toInt());
-                lObjectInfo->setAxis(lAxis);
-            } else if (lXmlStreamReader.name() == tag_axis_z) {
-                lAxis.setZ((QScadaObjectInfoAxisDirrection)lXmlStreamReader.readElementText().toInt());
-                lObjectInfo->setAxis(lAxis);
+            } else if (lXmlStreamReader.name() == order_level) {
+                lObjectInfo->setOrderLevel(lXmlStreamReader.readElementText().toInt());
+            } else if (lXmlStreamReader.name() == tag_ui_resource) {
+                lObjectInfo->setUIResourcePath(lXmlStreamReader.readElementText());
+            }
+            //parsing qml parameters
+            else if (lXmlStreamReader.name() == properties) {
+                int lStart = 1;
+                QMultiMap<QString, QVariant> lProperties;
+                while (lStart > 0) {
+                    if (QXmlStreamReader::StartElement == lXmlStreamReader.readNext()) {
+                        lProperties.insert(lXmlStreamReader.name().toString(), QVariant::fromValue<QString>(lXmlStreamReader.readElementText()));
+                        lStart++;
+                    }
+
+                    if (QXmlStreamReader::EndElement == lXmlStreamReader.tokenType()) {
+                        lStart--;
+                    }
+                }
+
+                lObjectInfo->setUIProperties(lProperties);
             }
 
         } else if (tokenType == QXmlStreamReader::EndElement) {
@@ -180,7 +192,7 @@ void VConnectedDeviceInfo::initFromXml(const QByteArray &xmlData) {
     }
 }
 
-void VConnectedDeviceInfo::saveXmlToFile(const QString &filePath)
+void QConnectedDeviceInfo::saveXmlToFile(const QString &filePath)
 {
     qDebug() << __FUNCTION__;
     QFile lFile(filePath);
@@ -210,41 +222,37 @@ void VConnectedDeviceInfo::saveXmlToFile(const QString &filePath)
     }
 }
 
-QString VConnectedDeviceInfo::XMLFromDeviceInfo(QList<QScadaDeviceInfo> deviceList, QScadaBoardController *boardController)
+QString QConnectedDeviceInfo::XMLFromDeviceInfo(QList<QScadaDeviceInfo*> deviceList, QScadaBoardController *boardController)
 {
     //create xml for devices
-    VConnectedDeviceInfo i;
-    QString rDevices = i.formTag(tag_devices, false, true, 0);//"<devices>\n";
-    for (QScadaDeviceInfo info: deviceList) {
-        rDevices += i.formTag(tag_device, false, true, 1);//"\t<device>\n";
-        rDevices += i.formTagValue(tag_device_name, info.name(), true, 2);//"\t\t<name>" + info.name() + "</name>\n";
-        rDevices += i.formTagValue(tag_device_ip, info.ip().toString(), true, 2);//"\t\t<ip>" + info.ip().toString() + "</ip>\n";
-        rDevices += i.formTagValue(tag_device_ip_v6, info.ipv6().toString(), true, 2);//"\t\t<ip_v6>" + info.ipv6().toString() + "</ip_v6>\n";
-        rDevices += i.formTagValue(tag_device_host, info.host(), true, 2);//"\t\t<host>" + info.host() + "</host>\n";
-        rDevices += i.formTagValue(tag_device_domain, info.domain(), true, 2);//"\t\t<domain>" + info.domain() + "</domain>\n";
+    QConnectedDeviceInfo i;
+    QString rDevices = i.formTag(tag_devices, false, true, 0);
+    for (QScadaDeviceInfo *info: deviceList) {
+        rDevices += i.formTag(tag_device, false, true, 1);
+        rDevices += i.formTagValue(tag_device_name, info->name(), true, 2);
+        rDevices += i.formTagValue(tag_device_ip, info->ip().toString(), true, 2);
+        rDevices += i.formTagValue(tag_device_ip_v6, info->ipv6().toString(), true, 2);
+        rDevices += i.formTagValue(tag_device_host, info->host(), true, 2);
+        rDevices += i.formTagValue(tag_device_domain, info->domain(), true, 2);
         rDevices += i.formTag(tag_device, true, true, 1);//"\t</device>\n";
 
-        rDevices += i.formTag(tag_boards, false, true, 1);//"\t<boards>\n";
-        for(QScadaBoard *board : boardController->getBoardListForDeviceIp(info.ip().toString())) {
-            rDevices += i.formTag(tag_board, false, true, 2);//"\t\t<board>\n";
+        rDevices += i.formTag(tag_boards, false, true, 1);
+        for(QScadaBoard *board : boardController->getBoardListForDeviceIp(info->ip().toString())) {
+            rDevices += i.formTag(tag_board, false, true, 2);
+            rDevices += i.formTagValue(tag_board_id, QString::number(board->getId()), true, 3);
             for (QScadaObject *object : *board->objects()) {
-                rDevices += i.formTag(tag_object, false, true, 3);//"\t\t\t<object>\n";
-                rDevices += i.formTagValue(tag_title, object->info()->title(), true, 4);//"\t\t\t\t<title>"+ object->info()->title() + "</title>\n";
-                rDevices += i.formTagValue(tag_id, QString::number(object->info()->id()), true, 4);//"\t\t\t\t<id>"+ QString::number(object->info()->id()) + "</id>\n";
-                rDevices += i.formTagValue(tag_is_dynamic, QString::number(object->info()->isDynamic()), true, 4);//"\t\t\t\t<is_dynamic>"+ QString::number(object->info()->isDynamic()) + "</is_dynamic>\n";
+                rDevices += i.formTag(tag_object, false, true, 3);
+                rDevices += i.formTagValue(tag_id, QString::number(object->info()->id()), true, 4);
                 rDevices += i.formTagValue(tag_show_background, QString::number(object->info()->showBackground()), true, 4);
-                rDevices += i.formTagValue(tag_show_background_image, QString::number(object->info()->showBackgroundImage()), true, 4);
-                rDevices += i.formTagValue(tag_show_marker, QString::number(object->info()->showMarkers()), true, 4);
-                rDevices += i.formTagValue(tag_background_image, object->info()->backGroundImage(), true, 4);
-                rDevices += i.formTagValue(tag_geometry_x, QString::number(object->info()->geometry().x()), true, 4);//"\t\t\t\t<geometry_x>"+ QString::number(object->info()->geometry().x()) + "</geometry_x>\n";
-                rDevices += i.formTagValue(tag_geometry_y, QString::number(object->info()->geometry().y()), true, 4);//"\t\t\t\t<geometry_y>"+ QString::number(object->info()->geometry().y()) + "</geometry_y>\n";
-                rDevices += i.formTagValue(tag_geometry_width, QString::number(object->info()->geometry().width()), true, 4);//"\t\t\t\t<geometry_width>"+ QString::number(object->info()->geometry().width()) + "</geometry_width>\n";
-                rDevices += i.formTagValue(tag_geometry_height, QString::number(object->info()->geometry().height()), true, 4);//"\t\t\t\t<geometry_height>"+ QString::number(object->info()->geometry().height()) + "</geometry_height>\n";
-                rDevices += i.formTagValue(tag_axis_enabled, QString::number(object->info()->axiesEnabled()), true, 4);//"\t\t\t\t<axis_enabled>"+ QString::number(object->info()->axiesEnabled()) + "</axis_enabled>\n";
-                rDevices += i.formTagValue(tag_axis_position, QString::number(object->info()->axisPosition()), true, 4);
-                rDevices += i.formTagValue(tag_axis_x, QString::number(object->info()->axis().getX()), true, 4);//"\t\t\t\t<axis_x>"+ QString::number(object->info()->axis().getX()) + "</axis_x>\n";
-                rDevices += i.formTagValue(tag_axis_y, QString::number(object->info()->axis().getY()), true, 4);//"\t\t\t\t<axis_y>"+ QString::number(object->info()->axis().getY()) + "</axis_y>\n";
-                rDevices += i.formTagValue(tag_axis_z, QString::number(object->info()->axis().getZ()), true, 4);//"\t\t\t\t<axis_z>"+ QString::number(object->info()->axis().getZ()) + "</axis_z>\n";
+                rDevices += i.formTagValue(tag_geometry_x, QString::number(object->info()->geometry().x()), true, 4);
+                rDevices += i.formTagValue(tag_geometry_y, QString::number(object->info()->geometry().y()), true, 4);
+                rDevices += i.formTagValue(tag_geometry_width, QString::number(object->info()->geometry().width()), true, 4);
+                rDevices += i.formTagValue(tag_geometry_height, QString::number(object->info()->geometry().height()), true, 4);
+                rDevices += i.formTagValue(order_level, QString::number(object->info()->orderLevel()), true, 4);
+                rDevices += i.formTagValue(tag_ui_resource, object->info()->uiResourcePath(), true, 4);
+                if (static_cast<QScadaObjectQML*>(object)->QMLProperties().count() > 0) {
+                    rDevices += QConnectedDeviceInfo::formProperties(static_cast<QScadaObjectQML*>(object)->QMLProperties());
+                }
                 rDevices += i.formTag(tag_object, true, true, 3);//"\t\t\t</object>\n";
             }
             rDevices += i.formTag(tag_board, true, true, 2);//"\t\t</board>\n";

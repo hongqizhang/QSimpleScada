@@ -4,11 +4,11 @@
 #
 #-------------------------------------------------
 
-QT += widgets network
+QT += widgets network qml quick quickwidgets
 
 TARGET = QSimpleScada
 TEMPLATE = lib
-VERSION = 0.5.0
+VERSION = 0.9.0
 
 include(com_indeema_QSimpleScada.pri)
 

@@ -1,17 +1,23 @@
 #include "qscadaboard.h"
+#include "qscadaboardinfo.h"
+#include "qscadaboardcontroller.h"
+#include "../QScadaObject/qscadaobjectinfo.h"
+#include "../QScadaObject/qscadaobjectqml.h"
 
 #include <QApplication>
 #include <QPainter>
 #include <QPen>
 #include <QDebug>
+#include <QMouseEvent>
 
-QScadaBoard::QScadaBoard(QWidget *parent) :
+QScadaBoard::QScadaBoard(int id, QWidget *parent) :
     QWidget(parent),
+    mId{id},
     mObjects{new QList<QScadaObject*>()},
     mEditable{false},
     mShowGrid{true},
     mGrid{10},
-    mPixmap{nullptr}
+    mGridPixmap{nullptr}
 {
     setPalette(QPalette(Qt::transparent));
     setAutoFillBackground(true);
@@ -21,45 +27,79 @@ QScadaBoard::QScadaBoard(QWidget *parent) :
     resetGridPixmap();
 }
 
+QScadaBoard::QScadaBoard(QScadaBoardInfo *boardInfo, QWidget *parent):
+    QWidget(parent),
+    mId{boardInfo->id()},
+    mObjects{new QList<QScadaObject*>()},
+    mEditable{false},
+    mShowGrid{true},
+    mGrid{10},
+    mGridPixmap{nullptr}
+{
+    this->initBoard(boardInfo);
+}
+
 QScadaBoard::~QScadaBoard()
 {
     qDeleteAll(*mObjects);
     delete mObjects;
 }
 
-void QScadaBoard::createNewObject()
+void QScadaBoard::initBoard(QScadaBoardInfo *boardInfo)
 {
-    createNewObject(mObjects->count());
+    if (boardInfo != nullptr) {
+        this->setEditable(false);
+
+        for (int i=boardInfo->objectList().count()-1; i>=0; i--) {
+            for (QScadaObjectInfo *info : boardInfo->objectList()) {
+                if (info->orderLevel() == i) {
+                   this->initNewObject(info);
+                }
+            }
+        }
+    }
+}
+
+QScadaObject *QScadaBoard::initNewObject(QScadaObjectInfo *info)
+{
+    QScadaObject *rObject = new QScadaObjectQML(info, this);
+
+    rObject->setIsEditable(mEditable);
+    connect(rObject, SIGNAL(objectDoubleClicked(QScadaObject*)), this , SIGNAL(objectDoubleClicked(QScadaObject*)));
+    connect(rObject, SIGNAL(objectSelected(int)), this , SLOT(newObjectSelected(int)));
+    connect(rObject, SIGNAL(objectMove(int,int)), this , SLOT(objectMove(int,int)));
+    connect(rObject, SIGNAL(objectResize(int,int)), this , SLOT(objectResize(int,int)));
+    rObject->setSelected(true);//make object selected only after signals are connected to handle highlight of new objects
+    rObject->show();
+    rObject->update();
+    mObjects->append(rObject);
+
+    emit newObjectCreated(rObject);
+
+    return rObject;
 }
 
 void QScadaBoard::createNewObject(QScadaObjectInfo *info)
 {
-    QScadaObject *lObject = new QScadaObject(this);
-    lObject->setInfo(info);
-    //rize object if it's dynamic so general image will be on background
-    if (info->isDynamic()) {
-        bringToFront(lObject);
-    }
-    lObject->setIsEditable(mEditable);
-    connect(lObject, SIGNAL(objectDoubleClicked(QScadaObject*)), this , SIGNAL(objectDoubleClicked(QScadaObject*)));
-    connect(lObject, SIGNAL(objectSelected(int)), this , SLOT(newObjectSelected(int)));
-    connect(lObject, SIGNAL(objectMove(int,int)), this , SLOT(objectMove(int,int)));
-    connect(lObject, SIGNAL(objectResize(int,int)), this , SLOT(objectResize(int,int)));
-    lObject->show();
-    lObject->update();
-    mObjects->append(lObject);
+    QScadaObject *lObject = this->initNewObject(info);
+
+    bringToFront(lObject);
 }
 
-void QScadaBoard::createNewObject(int id)
+void QScadaBoard::createQMLObject(int id, QString path)
 {
     QScadaObjectInfo *lInfo = new QScadaObjectInfo();
     lInfo->setId(id);
-    lInfo->setShowMarkers(true);
     lInfo->setShowBackground(true);
-    lInfo->setShowBackgroundImage(false);
-    lInfo->setIsDynamic(true);
+    lInfo->setType(QScadaObjectTypeQML);
+    lInfo->setUIResourcePath(path);
 
     createNewObject(lInfo);
+}
+
+void QScadaBoard::createQMLObject(QString path)
+{
+    this->createQMLObject(mObjects->count(), path);
 }
 
 void QScadaBoard::mouseMoveEvent(QMouseEvent *event)
@@ -78,42 +118,44 @@ void QScadaBoard::mousePressEvent(QMouseEvent *event)
 
 void QScadaBoard::paintEvent(QPaintEvent *e)
 {
-    if (mPixmap == nullptr) {
-        resetGridPixmap();
-    }
-
-    if ((mPixmap->width() != this->width())
-            || (mPixmap->height() != this->height())) {
-        delete mPixmap;
-        resetGridPixmap();
-    }
-
-    if (mUpdateGridPixmap) {
-        QPainter lPainter(mPixmap);
-        mPixmap->fill(Qt::white);
-        QPen lLinepen(Qt::darkGray);
-        lLinepen.setCapStyle(Qt::RoundCap);
-        lLinepen.setWidth(1);
-        lPainter.setRenderHint(QPainter::Antialiasing,true);
-        lPainter.setPen(lLinepen);
-
-        int lX = this->width();
-        int lY = this->height();
-
-        mPixmap->scaledToWidth(lX);
-        mPixmap->scaledToHeight(lY);
-
-        for (int i=0; i<=lX; i++) {
-            for (int j=1; j<=lY; j++) {
-                lPainter.drawPoint(QPoint(mGrid*i, mGrid*j));
-            }
+    if (mShowGrid) {
+        if (mGridPixmap == nullptr) {
+            resetGridPixmap();
         }
 
-        mUpdateGridPixmap = false;
-    }
+        if ((mGridPixmap->width() != this->width())
+                || (mGridPixmap->height() != this->height())) {
+            delete mGridPixmap;
+            resetGridPixmap();
+        }
 
-    QPainter lPainter(this);
-    lPainter.drawPixmap(0, 0, mPixmap->width(), mPixmap->height(), *mPixmap);
+        if (mUpdateGridPixmap) {
+            QPainter lPainter(mGridPixmap);
+            mGridPixmap->fill(Qt::white);
+            QPen lLinepen(Qt::darkGray);
+            lLinepen.setCapStyle(Qt::RoundCap);
+            lLinepen.setWidth(1);
+            lPainter.setRenderHint(QPainter::Antialiasing,true);
+            lPainter.setPen(lLinepen);
+
+            int lX = this->width();
+            int lY = this->height();
+
+            mGridPixmap->scaledToWidth(lX);
+            mGridPixmap->scaledToHeight(lY);
+
+            for (int i=0; i<=lX; i++) {
+                for (int j=1; j<=lY; j++) {
+                    lPainter.drawPoint(QPoint(mGrid*i, mGrid*j));
+                }
+            }
+
+            mUpdateGridPixmap = false;
+        }
+
+        QPainter lPainter(this);
+        lPainter.drawPixmap(0, 0, mGridPixmap->width(), mGridPixmap->height(), *mGridPixmap);
+    }
 
     QWidget::paintEvent(e);
 }
@@ -124,6 +166,7 @@ void QScadaBoard::newObjectSelected(int id)
         if (id != object->info()->id()) {
             object->setSelected(false);
         } else {
+            this->bringToFront(object);
             emit objectSelected(object);
         }
     }
@@ -137,6 +180,16 @@ void QScadaBoard::objectMove(int, int)
 void QScadaBoard::objectResize(int, int)
 {
     update();
+}
+
+void QScadaBoard::setId(int id)
+{
+    mId = id;
+}
+
+int QScadaBoard::getId() const
+{
+    return mId;
 }
 
 QList<QScadaObject *> *QScadaBoard::objects() const
@@ -159,12 +212,42 @@ QList<QScadaObject*> QScadaBoard::getSeletedObjects()
 
 void QScadaBoard::resetGridPixmap()
 {
-    mPixmap = new QPixmap(this->width(), this->height());
+    mGridPixmap = new QPixmap(this->width(), this->height());
     mUpdateGridPixmap = true;
+}
+
+void QScadaBoard::orderObject(QScadaObject *o)
+{
+    bool lIsNew = false;
+    for (int i=0;i<mObjects->count();i++) {
+        if (mObjects->at(i)->info()->orderLevel() == o->info()->orderLevel()
+                && mObjects->at(i)->info()->id() != o->info()->id()) {
+            lIsNew = true;
+        }
+    }
+
+    if (lIsNew){
+        for (int i=0;i<mObjects->count();i++) {
+            mObjects->at(i)->info()->orderDown();
+
+            if (mObjects->at(i)->info()->orderLevel() >= mObjects->count()) {
+                mObjects->at(i)->info()->setOrderLevel(mObjects->count()-1);
+            }
+        }
+    } else {
+        for (int i=0;i<mObjects->count();i++) {
+            if (mObjects->at(i)->info()->orderLevel() < o->info()->orderLevel()) {
+                mObjects->at(i)->info()->orderDown();
+            }
+        }
+    }
+
+    o->info()->setOrderLevel(0);
 }
 
 void QScadaBoard::bringToFront(QScadaObject *o)
 {
+    orderObject(o);
     o->raise();
 }
 
@@ -204,29 +287,36 @@ void QScadaBoard::updateObjectWithId(int id)
     for (QScadaObject *object : *mObjects) {
         if (id == object->info()->id()) {
             object->update();
+            object->updateUIProperties();
         }
     }
 }
 
-void QScadaBoard::updateStatusWithId(int id, QScadaObjectStatus status)
+void QScadaBoard::updateValue(int id, QVariant value)
 {
     for (QScadaObject *object : *mObjects) {
         if (id == object->info()->id()) {
-            object->setStatus(status);
-            object->update();
+            object->updateValue(value);
+        }
+    }
+}
+
+void QScadaBoard::setPropertyWithId(int id, QString property, QVariant value)
+{
+    for (QScadaObject *object : *mObjects) {
+        if (id == object->info()->id()) {
+            object->setProperty(property.toLocal8Bit().data(), value);
         }
     }
 }
 
 bool QScadaBoard::showGrid() const
 {
-    qDebug() << __FUNCTION__;
     return mShowGrid;
 }
 
 void QScadaBoard::setShowGrid(bool showGrid)
 {
-    qDebug() << __FUNCTION__;
     mShowGrid = showGrid;
 
     repaint();
@@ -234,13 +324,11 @@ void QScadaBoard::setShowGrid(bool showGrid)
 
 bool QScadaBoard::editable() const
 {
-    qDebug() << __FUNCTION__;
     return mEditable;
 }
 
 void QScadaBoard::setEditable(bool editable)
 {
-    qDebug() << __FUNCTION__;
     mEditable = editable;
 
     for (QScadaObject *object : *mObjects) {

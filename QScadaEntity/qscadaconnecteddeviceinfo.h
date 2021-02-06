@@ -10,8 +10,6 @@
 #include <QList>
 #include <QHostAddress>
 
-class VConnectedDeviceInfo;
-
 struct QScadaDeviceConfig {
     QString			name;
     QString			domain;
@@ -21,7 +19,7 @@ struct QScadaDeviceConfig {
     QList<QScadaBoardInfo*> boardList;
 };
 
-class VConnectedDeviceInfo : public QScadaBasePrefEntity
+class QConnectedDeviceInfo : public QScadaBasePrefEntity
 {
 public:
     static const QString tag_devices;
@@ -34,14 +32,10 @@ public:
     //board tags
     static const QString tag_boards;
     static const QString tag_board;
+    static const QString tag_board_id;
     static const QString tag_object;
-    static const QString tag_title;
     static const QString tag_show_background;//new
-    static const QString tag_show_background_image;//new
-    static const QString tag_show_marker;//new
-    static const QString tag_background_image;//new
     static const QString tag_id;
-    static const QString tag_is_dynamic;
     static const QString tag_geometry_x;
     static const QString tag_geometry_y;
     static const QString tag_geometry_width;
@@ -51,20 +45,25 @@ public:
     static const QString tag_axis_x;
     static const QString tag_axis_y;
     static const QString tag_axis_z;
+    static const QString order_level;
+    static const QString tag_ui_resource;
+    static const QString properties;
 
 public:
-    VConnectedDeviceInfo(QObject *parent = 0);
+    QConnectedDeviceInfo(QObject *parent = 0);
 
     static QString formTag(QString tag, bool isClosing, bool newLine, int numOfTabs); //so if formTag("device", false, true, 1) the result will be "\t<device>"
     static QString formTagValue(QString tag, QString value, bool newLine, int numOfTabs);
 
+    static QString formProperties(QMultiMap<QString, QVariant>);
+//    QMultiMap<QString, QVariant> parseProperties();
 
     QList<QScadaDeviceConfig *> connecteDeviceList;
 
     void initFromXml(const QByteArray &xmlData);
 
     void saveXmlToFile(const QString &filePath);
-    static QString XMLFromDeviceInfo(QList<QScadaDeviceInfo> deviceList, QScadaBoardController *);
+    static QString XMLFromDeviceInfo(QList<QScadaDeviceInfo*> deviceList, QScadaBoardController *);
 };
 
 #endif // CONNECTEDDEVICEINFO_H

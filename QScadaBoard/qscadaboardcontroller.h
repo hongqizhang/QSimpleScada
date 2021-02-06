@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QList>
+#include <QGridLayout>
 
 #include "../QScadaObject/qscadaobject.h"
 
@@ -13,28 +14,42 @@ class QScadaObject;
 class VUnitModel;
 class QScadaBoardManager;
 class QScadaBoardInfo;
+class QScadaDeviceInfo;
 
 class QScadaBoardController : public QWidget
 {
     Q_OBJECT
 public:
-    explicit QScadaBoardController(QWidget *parent = 0);
+    explicit QScadaBoardController(QWidget *parent = nullptr);
     ~QScadaBoardController();
 
-    void initConnectedDevices(const QList<QScadaBoardInfo*>list);
+    //this method appends device to list and create all boards in list
+    void appendDevice(QScadaDeviceInfo*);
 
+    //removes all objects from specific board
     void clearBoard(QScadaBoard*);
+    //removes all objects from all boards
     void clearAllBoards();
+    //removes all devices and boards and it objects
+    void resetAllboards();
 
-    void initBoardForDeviceIp(QString);
+    void initConnectedDevices(const QList<QScadaBoardInfo*>list);
+    void initBoardForDeviceIp(QString ip, QScadaBoardInfo *info=nullptr);
     void updateBoardForDeviceIp(QString);
     QList<QScadaBoard*> getBoardList();
     QList<QScadaBoard*> getBoardListForDeviceIp(QString);
 
-    void updateStatus(QString device, int objectId, QScadaObjectStatus status);
-    void updateStatus(QStringList device, QList<int> objectId, QList<QScadaObjectStatus> status);
-
     void setEditingMode(bool);
+
+    QScadaObjectInfoDialog *getParametersDialod() const;
+    void setParametersDialod(QScadaObjectInfoDialog *parametersDialod);
+
+    void updateValue(QString deviceIp, int boardId, int id, QVariant value);
+    void setPropertyWithId(QString deviceIp, int boardId, int id, QString property, QVariant value);
+
+    void openProject(QString file);
+    void saveProject(QString file);
+
 
 signals:
     void objectDoubleClicked(QScadaObject*);
@@ -48,7 +63,6 @@ private slots:
     void updateObjectInfoDialog(QScadaObject *);
     void deleteObject(QScadaObjectInfo *);
     void updateSavedObject(QScadaObjectInfo *);
-    void updateStatus();
     void objectDoubleClickedHandler(QScadaObject*);
 
 protected:
@@ -59,6 +73,7 @@ private:
     QScadaBoard *mBoard;
     QScadaObjectInfoDialog *mParametersDialod;
     QList<int> mObjectIds;
+    QGridLayout *mMainLayout;
 };
 
 #endif // VVIEWCONFIGURAOT_H

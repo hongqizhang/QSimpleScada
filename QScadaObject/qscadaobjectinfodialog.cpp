@@ -2,8 +2,12 @@
 #include "ui_qscadaobjectinfodialog.h"
 
 #include "qscadaobjectinfo.h"
-#include "QFileDialog"
-#include "QDebug"
+
+#include <QFileDialog>
+#include <QDebug>
+#include <QBoxLayout>
+#include <QTableWidget>
+#include <QTableWidgetItem>
 
 QScadaObjectInfoDialog::QScadaObjectInfoDialog(QWidget *parent) :
     QWidget(parent),
@@ -12,12 +16,32 @@ QScadaObjectInfoDialog::QScadaObjectInfoDialog(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    initAxiesList();
+    updateWithObjectInfo(nullptr);
 }
 
 QScadaObjectInfoDialog::~QScadaObjectInfoDialog()
 {
     delete ui;
+}
+
+void QScadaObjectInfoDialog::showObjectProperties(QMultiMap<QString, QVariant> properties)
+{
+    mProperties = properties;
+
+    ui->tableWidget->setRowCount(properties.count());
+    ui->tableWidget->setColumnCount(2);
+    int i = 0;
+
+    for (QString key : properties.keys()) {
+        QTableWidgetItem *lNewItem = new QTableWidgetItem(key);
+        lNewItem->setFlags(Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsUserCheckable);
+        ui->tableWidget->setItem(i, 0, lNewItem);
+
+        QTableWidgetItem *lNewValueItem = new QTableWidgetItem(properties.value(key).toString());
+        ui->tableWidget->setItem(i, 1, lNewValueItem);
+
+        i++;
+    }
 }
 
 void QScadaObjectInfoDialog::updateWithObjectInfo(QScadaObjectInfo *info)
@@ -26,69 +50,31 @@ void QScadaObjectInfoDialog::updateWithObjectInfo(QScadaObjectInfo *info)
         disconnect(mLatestObject, SIGNAL(geometryChanged(QScadaObjectInfo*)), this, SLOT(geometryUpdated(QScadaObjectInfo *)));
     }
     mLatestObject = info;
+    bool lEnabled = true;;
 
     if (mLatestObject != nullptr) {
         //General
         connect(mLatestObject, SIGNAL(geometryChanged(QScadaObjectInfo*)), this, SLOT(geometryUpdated(QScadaObjectInfo *)));
-        ui->lineEditName->setText(mLatestObject->title());
-        ui->checkBoxDynamic->setChecked(info->isDynamic());
         ui->spinBoxId->setValue(info->id());
         ui->checkBoxShowBackground->setChecked(info->showBackground());
-        ui->checkBoxShowMarkers->setChecked(info->showMarkers());
-        ui->checkBoxShowBackGroundImage->setChecked(mLatestObject->showBackgroundImage());
 
-        mMarkerImage = mLatestObject->backGroundImage();
-
-        //axies
-        QScadaObjectInfoAxis lAxis = mLatestObject->axis();
-        enableAxis(info->axiesEnabled());
-        ui->comboBoxAxisPosition->setCurrentText(info->axisPosition() == VObjectAxisPositionLeft? "Left" : "Right");
-        ui->comboBoxX->setCurrentText(lAxis.getStringX());
-        ui->comboBoxY->setCurrentText(lAxis.getStringY());
-        ui->comboBoxZ->setCurrentText(lAxis.getStringZ());
-
+        showObjectProperties(info->UIProperties());
         //geometry
         geometryUpdated(mLatestObject);
     } else {
-        //clear title
-        ui->lineEditName->clear();
-
-        //clear axies
-        enableAxis(false);
+        lEnabled = false;
 
         //geometry
         ui->spinBoxX->clear();
         ui->spinBoxY->clear();
         ui->spinBoxWidth->clear();
         ui->spinBoxHeight->clear();
+
+        ui->tableWidget->clear();
     }
-}
 
-void QScadaObjectInfoDialog::enableAxis(bool enable)
-{
-    ui->checkBoxAxis->setChecked(enable);
-
-    ui->comboBoxAxisPosition->setEnabled(enable);
-
-    ui->comboBoxX->setEnabled(enable);
-    ui->comboBoxY->setEnabled(enable);
-    ui->comboBoxZ->setEnabled(enable);
-}
-
-void QScadaObjectInfoDialog::initAxiesList()
-{
-    ui->comboBoxX->clear();
-    ui->comboBoxY->clear();
-    ui->comboBoxZ->clear();
-
-    QStringList lList;
-    lList.append(AXIS_UP);
-    lList.append(AXIS_ASIDE);
-    lList.append(AXIS_INSIDE);
-
-    ui->comboBoxX->addItems(lList);
-    ui->comboBoxY->addItems(lList);
-    ui->comboBoxZ->addItems(lList);
+    ui->checkBoxShowBackground->setEnabled(lEnabled);
+    ui->spinBoxId->setEnabled(lEnabled);
 }
 
 void QScadaObjectInfoDialog::geometryUpdated(QScadaObjectInfo *info)
@@ -102,9 +88,15 @@ void QScadaObjectInfoDialog::geometryUpdated(QScadaObjectInfo *info)
 void QScadaObjectInfoDialog::on_pushButton_2_pressed()
 {
     if (mLatestObject != nullptr) {
+        //properties
+        for (int i=0; i< ui->tableWidget->rowCount(); i++) {
+            QTableWidgetItem *lKeyItem  = ui->tableWidget->item(i, 0);//taking лун
+            QTableWidgetItem *lValueItem  = ui->tableWidget->item(i, 1);//taking values
+            mProperties.replace(lKeyItem->text(), QVariant::fromValue<QString>(lValueItem->text()));//replacing all values
+        }
+        mLatestObject->setUIProperties(mProperties);
+
         //general
-        mLatestObject->setTitle(ui->lineEditName->text());
-        mLatestObject->setIsDynamic(ui->checkBoxDynamic->isChecked());
         mLatestObject->setId(ui->spinBoxId->value());
 
         //geometry
@@ -115,21 +107,6 @@ void QScadaObjectInfoDialog::on_pushButton_2_pressed()
 
         mLatestObject->setGeometry(QRect(lX, lY, lWidth, lHeight));
         mLatestObject->setShowBackground(ui->checkBoxShowBackground->isChecked());
-        mLatestObject->setShowMarkers(ui->checkBoxShowMarkers->isChecked());
-        mLatestObject->setShowBackgroundImage(ui->checkBoxShowBackGroundImage->isChecked());
-        //axies
-
-        mLatestObject->setAxiesEnabled(ui->checkBoxAxis->isChecked());//status
-        mLatestObject->setAxisPosition(ui->comboBoxAxisPosition->currentText() == "Left" ? VObjectAxisPositionLeft : VObjectAxisPositionRight);
-        QScadaObjectInfoAxis lAxis;
-        lAxis.setX(lAxis.axisFromString(ui->comboBoxX->currentText()));
-        lAxis.setY(lAxis.axisFromString(ui->comboBoxY->currentText()));
-        lAxis.setZ(lAxis.axisFromString(ui->comboBoxZ->currentText()));
-        mLatestObject->setAxis(lAxis);
-
-        if (!mMarkerImage.isEmpty()) {
-            mLatestObject->setBackGroundImage(mMarkerImage);
-        }
 
         if (mLatestObject != nullptr) {
             emit savePressed(mLatestObject);
@@ -143,27 +120,4 @@ void QScadaObjectInfoDialog::on_pushButton_pressed()
         emit deletePressed(mLatestObject);
         mLatestObject = nullptr;
     }
-}
-
-void QScadaObjectInfoDialog::on_checkBoxAxis_stateChanged(int arg1)
-{
-    bool lEnabled = false;
-    switch(arg1) {
-    case Qt::Unchecked: {
-        lEnabled = false;
-        break;
-    }
-    case Qt::Checked:{
-        lEnabled = true;
-        break;
-    }
-    }
-
-    enableAxis(lEnabled);
-}
-
-void QScadaObjectInfoDialog::on_pushButton_3_clicked()
-{
-    mMarkerImage = QFileDialog::getOpenFileName(this,
-         tr("Open Image"), "/home/vshevchyk", tr("Image Files (*.png *.jpg *.bmp *.jpeg)"));
 }
